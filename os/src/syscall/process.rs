@@ -62,7 +62,7 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         *_ti = TaskInfo {
             status: cur_tcb.task_status,
             syscall_times: cur_tcb.syscall_times,
-            time: cur_time - cur_tcb.start_time as usize,
+            time: cur_time - cur_tcb.start_time.expect("task is not running!") as usize,
         };
     }
     0

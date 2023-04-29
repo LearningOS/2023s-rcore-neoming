@@ -55,7 +55,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
-            start_time: -1,
+            start_time: None,
             syscall_times: [0; MAX_SYSCALL_NUM]
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
@@ -82,7 +82,7 @@ impl TaskManager {
     fn run_first_task(&self) -> ! {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
-        task0.start_time = get_time_ms() as isize;
+        task0.start_time = get_time_ms().into();
         task0.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
@@ -126,8 +126,11 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
-            if inner.tasks[next].start_time == -1 {
-                inner.tasks[next].start_time = get_time_ms() as isize;
+            match inner.tasks[next].start_time {
+                None => inner.tasks[next].start_time = get_time_ms().into(),
+                _ => {
+                    println!("Task {} is running before", next)
+                }
             }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
@@ -148,7 +151,6 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].syscall_times[syscall_id] += 1;
-        drop(inner);
     }
 
     /// Get TaskControlBlock about current task
