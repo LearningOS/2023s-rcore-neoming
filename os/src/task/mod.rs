@@ -48,6 +48,9 @@ pub struct TaskManagerInner {
     current_task: usize,
 }
 
+static mut TASK_SYSCALL_TIMES: [[u32; MAX_SYSCALL_NUM]; MAX_APP_NUM] =
+    [[0; MAX_SYSCALL_NUM]; MAX_APP_NUM];
+
 lazy_static! {
     /// Global variable: TASK_MANAGER
     pub static ref TASK_MANAGER: TaskManager = {
@@ -56,7 +59,6 @@ lazy_static! {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
             start_time: None,
-            syscall_times: [0; MAX_SYSCALL_NUM]
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -129,7 +131,7 @@ impl TaskManager {
             match inner.tasks[next].start_time {
                 None => inner.tasks[next].start_time = get_time_ms().into(),
                 _ => {
-                    println!("Task {} is running before", next)
+                    // println!("Task {} is running before", next)
                 }
             }
             inner.current_task = next;
@@ -148,18 +150,21 @@ impl TaskManager {
 
     /// Update `syscall count` for current task, will call this function in syscall
     fn update_syscall_times(&self, syscall_id: usize) {
-        let mut inner = self.inner.exclusive_access();
+        let inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        inner.tasks[current].syscall_times[syscall_id] += 1;
+        unsafe {
+            TASK_SYSCALL_TIMES[current][syscall_id] += 1;
+        }
     }
 
     /// Get TaskControlBlock about current task
-    fn get_current_task_control_block(&self) -> TaskControlBlock {
+    fn get_current_task_control_block(&self) -> (TaskControlBlock, [u32; MAX_SYSCALL_NUM]) {
         let inner = self.inner.exclusive_access();
         let current = inner.current_task;
         let cur_tcb = inner.tasks[current];
         drop(inner);
-        cur_tcb
+        let task_syscall_times = unsafe { TASK_SYSCALL_TIMES[current] };
+        (cur_tcb, task_syscall_times)
     }
 }
 
@@ -190,7 +195,7 @@ pub fn update_syscall_times(syscall_id: usize) {
 }
 
 /// get task_info of the current `Running` task
-pub fn get_current_task_control_block() -> TaskControlBlock {
+pub fn get_current_task_control_block() -> (TaskControlBlock, [u32; MAX_SYSCALL_NUM]) {
     TASK_MANAGER.get_current_task_control_block()
 }
 

@@ -56,12 +56,12 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 /// YOUR JOB: Finish sys_task_info to pass testcases
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info");
-    let cur_tcb = get_current_task_control_block();
+    let (cur_tcb, syscall_times) = get_current_task_control_block();
     let cur_time = get_time_ms();
     unsafe {
         *_ti = TaskInfo {
             status: cur_tcb.task_status,
-            syscall_times: cur_tcb.syscall_times,
+            syscall_times: syscall_times,
             time: cur_time - cur_tcb.start_time.expect("task is not running!") as usize,
         };
     }
