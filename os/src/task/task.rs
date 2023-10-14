@@ -1,9 +1,10 @@
 //! Types related to task management
 use super::TaskContext;
-use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE};
 use crate::mm::{
     kernel_stack_position, MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE,
 };
+use crate::timer::get_time_ms;
 use crate::trap::{trap_handler, TrapContext};
 
 /// The task control block (TCB) of a task.
@@ -28,9 +29,36 @@ pub struct TaskControlBlock {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Syscall times
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+
+    /// Fisrt scheduled
+    pub time_begin: Option<usize>,
 }
 
 impl TaskControlBlock {
+    /// Record syscall.
+    pub fn record_syscall(&mut self, syscall_id: usize) {
+        self.syscall_times[syscall_id] += 1;
+    }
+
+    /// Returns the record first time of this [`TaskControlBlock`].
+    pub fn record_first_time(&mut self) {
+        if self.time_begin == None {
+            self.time_begin = Some(get_time_ms());
+        }
+    }
+
+    /// Returns the real time of this [`TaskControlBlock`].
+    pub fn real_time(&mut self) -> usize {
+        if let Some(time_begin) = self.time_begin {
+            get_time_ms().checked_sub(time_begin).unwrap()
+        } else {
+            0
+        }
+    }
+
     /// get the trap context
     pub fn get_trap_cx(&self) -> &'static mut TrapContext {
         self.trap_cx_ppn.get_mut()
@@ -63,6 +91,8 @@ impl TaskControlBlock {
             base_size: user_sp,
             heap_bottom: user_sp,
             program_brk: user_sp,
+            syscall_times: [0; MAX_SYSCALL_NUM],
+            time_begin: None,
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();
