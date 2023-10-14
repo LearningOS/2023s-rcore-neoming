@@ -2,7 +2,8 @@
 use super::TaskContext;
 use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE};
 use crate::mm::{
-    kernel_stack_position, MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE,
+    kernel_stack_position, MapPermission, MemorySet, PageTableEntry, PhysPageNum, VirtAddr,
+    VirtPageNum, KERNEL_SPACE,
 };
 use crate::timer::get_time_ms;
 use crate::trap::{trap_handler, TrapContext};
@@ -59,14 +60,37 @@ impl TaskControlBlock {
         }
     }
 
+    /// Insert framed memory
+    pub fn insert_framed_area(
+        &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+        permission: MapPermission,
+    ) {
+        self.memory_set
+            .insert_framed_area(start_va, end_va, permission)
+    }
+
+    /// Get pte by vpn
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        self.memory_set.translate(vpn)
+    }
+
+    /// Remove framed memory
+    pub fn remove_framed_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) {
+        self.memory_set.remove_framed_area(start_va, end_va)
+    }
+
     /// get the trap context
     pub fn get_trap_cx(&self) -> &'static mut TrapContext {
         self.trap_cx_ppn.get_mut()
     }
+
     /// get the user token
     pub fn get_user_token(&self) -> usize {
         self.memory_set.token()
     }
+
     /// Based on the elf info in program, build the contents of task in a new address space
     pub fn new(elf_data: &[u8], app_id: usize) -> Self {
         // memory_set with elf program headers/trampoline/trap context/user stack

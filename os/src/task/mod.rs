@@ -16,14 +16,14 @@ mod task;
 
 use crate::config::MAX_SYSCALL_NUM;
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, PageTableEntry, VirtAddr, VirtPageNum};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
+pub use context::TaskContext;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
-
-pub use context::TaskContext;
 
 /// The task manager, where all the tasks are managed.
 ///
@@ -161,6 +161,7 @@ impl TaskManager {
         }
     }
 
+    /// record syscall
     fn record_syscall(&self, syscall_id: usize) {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
@@ -168,6 +169,7 @@ impl TaskManager {
         inner.tasks[current].record_syscall(syscall_id);
     }
 
+    /// get real time
     fn get_real_time(&self) -> usize {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
@@ -175,11 +177,35 @@ impl TaskManager {
         inner.tasks[current].real_time()
     }
 
+    /// get syscall times
     fn get_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM] {
         let inner = self.inner.exclusive_access();
         let current = inner.current_task;
 
         inner.tasks[current].syscall_times
+    }
+
+    /// insert framed area
+    fn insert_framed_area(&self, start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+
+        inner.tasks[current].insert_framed_area(start_va, end_va, permission)
+    }
+
+    /// remove framed area
+    fn remove_framed_area(&self, start_va: VirtAddr, end_va: VirtAddr) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+
+        inner.tasks[current].remove_framed_area(start_va, end_va)
+    }
+    /// Get pte from va
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+
+        inner.tasks[current].translate(vpn)
     }
 }
 
@@ -244,4 +270,19 @@ pub fn get_syscall_times() -> [u32; MAX_SYSCALL_NUM] {
 /// Get time
 pub fn get_real_time() -> usize {
     TASK_MANAGER.get_real_time()
+}
+
+/// Mmap
+pub fn insert_framed_area(start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) {
+    TASK_MANAGER.insert_framed_area(start_va, end_va, permission)
+}
+
+/// mumap
+pub fn remove_framed_area(start_va: VirtAddr, end_va: VirtAddr) {
+    TASK_MANAGER.remove_framed_area(start_va, end_va)
+}
+
+/// Translate
+pub fn translate(vpn: VirtPageNum) -> Option<PageTableEntry> {
+    TASK_MANAGER.translate(vpn)
 }
